@@ -106,7 +106,7 @@ class SupervisedContrastiveLoss(torch.nn.Module):
 
 
 class LGMLoss(torch.nn.Module):
-    def __init__(self, num_classes, feat_dim=640, alpha=0.1, lambda_=0.01):
+    def __init__(self, num_classes, feat_dim=64, alpha=0.1, lambda_=0.01):
         super(LGMLoss, self).__init__()
         self.num_classes = num_classes
         self.alpha = alpha
@@ -133,4 +133,4 @@ class LGMLoss(torch.nn.Module):
 
         logits_with_margin = torch.mul(neg_sqr_dist, K)
 
-        return logits_with_margin
+        return F.cross_entropy(logits_with_margin, labels)

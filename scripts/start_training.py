@@ -87,7 +87,6 @@ def main():
     # define xent loss function (criterion) and optimizer
     xent = LGMLoss(
         args.num_classes,
-        batch_size=args.batch_size,
     ).cuda()
     print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
 

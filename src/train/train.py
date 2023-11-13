@@ -1,10 +1,20 @@
-import torch
 import time
-from src.utils.evaluation import warp_tqdm, AverageMeter, get_metric
+
+import torch
+
+from src.utils.evaluation import AverageMeter, get_metric, warp_tqdm
 
 
 def train(
-    train_loader, model, xent_f, nca_f, optimizer, epoch, scheduler, tb_writer_train, args
+    train_loader,
+    model,
+    xent_f,
+    nca_f,
+    optimizer,
+    epoch,
+    scheduler,
+    tb_writer_train,
+    args,
 ):
     """
     Function that performs 1 training iteration.
@@ -112,9 +122,7 @@ def train(
 
                     else:
                         # compute distances
-                        output = -get_metric("euclidean", args)(
-                            query_proto, shot_proto
-                        )
+                        output = -get_metric("euclidean", args)(query_proto, shot_proto)
 
                         total_loss = query_support_nca_loss(
                             output, target_support, target_query, args
