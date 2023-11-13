@@ -158,6 +158,7 @@ def train(
         end = time.time()
 
 
+# FIXME: This function is not used anywhere
 def query_support_nca_loss(output, target_support, target_query, args):
     """
     Function to compute the NCA loss between a support and query set.

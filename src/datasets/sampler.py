@@ -1,16 +1,15 @@
+import copy
+import random
+
 import numpy as np
 import torch
 from torch.utils.data import Sampler
-import random
-import copy
 
-__all__ = ['CategoriesSampler', 'ReplacementSampler']
+__all__ = ["CategoriesSampler", "ReplacementSampler"]
 
 
 class CategoriesSampler(Sampler):
-
     def __init__(self, label, replacement, n_iter, n_way, n_shot, n_query):
-
         self.n_iter = n_iter
         self.n_way = n_way
         self.n_shot = n_shot
@@ -32,7 +31,6 @@ class CategoriesSampler(Sampler):
             self.m_ind.append(ind)
             self.class2imgs[i] = list(ind.numpy())
 
-
     def __len__(self):
         return self.n_iter
 
@@ -41,18 +39,18 @@ class CategoriesSampler(Sampler):
             for i in range(self.n_iter):
                 batch_gallery = []
                 batch_query = []
-                classes = torch.randperm(len(self.m_ind))[:self.n_way]
+                classes = torch.randperm(len(self.m_ind))[: self.n_way]
                 for c in classes:
                     l = self.m_ind[c.item()]
                     pos = torch.randperm(l.size()[0])
-                    batch_gallery.append(l[pos[:self.n_shot]])
-                    batch_query.append(l[pos[self.n_shot:self.n_shot + self.n_query]])
+                    batch_gallery.append(l[pos[: self.n_shot]])
+                    batch_query.append(l[pos[self.n_shot : self.n_shot + self.n_query]])
                 batch = torch.cat(batch_gallery + batch_query)
                 yield batch
 
         else:
-            n_to_sample = (self.n_query + self.n_shot)
-            batch_size = self.n_way*(self.n_query + self.n_shot)
+            n_to_sample = self.n_query + self.n_shot
+            batch_size = self.n_way * (self.n_query + self.n_shot)
 
             remaining_classes = list(self.labels)
 
@@ -69,9 +67,15 @@ class CategoriesSampler(Sampler):
                 for c in classes:
                     # sample correct numbers
                     l = random.sample(copy_class2imgs[c], n_to_sample)
-                    batch_gallery.append(torch.tensor(l[:self.n_shot], dtype=torch.int32))
-                    batch_query.append(torch.tensor(l[self.n_shot:self.n_shot + self.n_query],
-                                                    dtype=torch.int32))
+                    batch_gallery.append(
+                        torch.tensor(l[: self.n_shot], dtype=torch.int32)
+                    )
+                    batch_query.append(
+                        torch.tensor(
+                            l[self.n_shot : self.n_shot + self.n_query],
+                            dtype=torch.int32,
+                        )
+                    )
 
                     # remove values if used (sampling without replacement)
                     for value in l:
@@ -86,6 +90,7 @@ class CategoriesSampler(Sampler):
                 batch = torch.cat(batch_gallery + batch_query)
                 yield batch
 
+
 class ReplacementSampler(Sampler):
     """
     Sampler for a dataloader that samples batches such that between different
@@ -93,6 +98,7 @@ class ReplacementSampler(Sampler):
     can be sampled, whereas during traditional batch sampling all elements must
     occur once.
     """
+
     def __init__(self, label, n_iter, batch_size):
         self.n_iter = n_iter
         self.batch_size = batch_size
