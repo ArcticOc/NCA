@@ -132,5 +132,11 @@ class LGMLoss(torch.nn.Module):
         K = ALPHA + torch.ones([batch_size, self.num_classes]).cuda()
 
         logits_with_margin = torch.mul(neg_sqr_dist, K)
-
-        return F.cross_entropy(logits_with_margin, labels)
+        means_batch = torch.index_select(self.means, dim=0, index=labels)
+        likelihood_reg_loss = (
+            self.lambda_
+            * (torch.sum((feat - means_batch) ** 2) / 2)
+            * (1.0 / batch_size)
+        )
+        loss = F.cross_entropy(logits_with_margin, labels) + likelihood_reg_loss
+        return loss
