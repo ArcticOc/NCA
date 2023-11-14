@@ -264,6 +264,7 @@ def main():
                 writer=tb_writer_val,
                 t=epoch * len(train_loader),
             )
+
             # update best accuracies
             is_best1, is_best5 = best_accuracy_meter.update(shot1_info, shot5_info)
 
