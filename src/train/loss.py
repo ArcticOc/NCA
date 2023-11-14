@@ -138,5 +138,5 @@ class LGMLoss(torch.nn.Module):
             * (torch.sum((feat - means_batch) ** 2) / 2)
             * (1.0 / batch_size)
         )
-        loss = F.cross_entropy(logits_with_margin, labels) + likelihood_reg_loss
+        loss = F.cross_entropy(logits_with_margin, labels) + 0.1 * likelihood_reg_loss
         return loss
