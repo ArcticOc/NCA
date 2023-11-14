@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -40,9 +41,49 @@ class FewShotNCALoss(torch.nn.Module):
         # negative matrix is the opposite using ~ as not operator
         negatives_matrix = torch.tensor(~bool_matrix, dtype=torch.int16).cuda()
 
-        denominators = torch.sum(dist * negatives_matrix, axis=0)
+        # sampling random elements for the negatives
+        if self.frac_negative_samples < 1:
+            # create a new mask
+            mask = torch.zeros(n, n).cuda()
 
-        numerators = torch.sum(dist * positives_matrix, axis=0)
+            negatives_idx = (negatives_matrix == 1).nonzero()
+
+            n_to_sample = int(negatives_idx.shape[0] * self.frac_negative_samples)
+
+            choice = np.random.choice(
+                negatives_idx.shape[0], size=n_to_sample, replace=False
+            )
+
+            choice = negatives_idx[choice, :]
+
+            mask[choice[:, 0], choice[:, 1]] = 1
+
+            # create random negatives mask
+            negatives_matrix = negatives_matrix * mask
+            denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
+        else:
+            denominators = torch.sum(dist * negatives_matrix, axis=0)
+
+        if self.frac_positive_samples < 1:
+            # create a new mask
+            mask = torch.zeros(n, n).cuda()
+
+            positives_idx = (positives_matrix == 1).nonzero()
+
+            n_to_sample = int(positives_idx.shape[0] * self.frac_positive_samples)
+
+            choice = np.random.choice(
+                positives_idx.shape[0], size=n_to_sample, replace=False
+            )
+
+            choice = positives_idx[choice, :]
+
+            mask[choice[:, 0], choice[:, 1]] = 1
+
+            positives_matrix = positives_matrix * mask
+            numerators = torch.sum(dist * positives_matrix, axis=0).cuda()
+        else:
+            numerators = torch.sum(dist * positives_matrix, axis=0)
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
