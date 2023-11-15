@@ -323,7 +323,7 @@ def extract_and_evaluate(
         writer.add_scalar(split + "/1-shot/CL2N", shot1_info[0], t)
         writer.add_scalar(split + "/5-shot/CL2N", shot5_info[0], t)
     filename = "../shot5_info.csv"
-    if split == "train":
+    if split == "val":
         with open(filename, "a", newline="") as file:
             writer = csv.writer(file)
             writer.writerow([shot5_info[0]])
