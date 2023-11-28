@@ -13,13 +13,45 @@ class FewShotNCALoss(torch.nn.Module):
         batch_size,
         frac_negative_samples=1,
         frac_positive_samples=1,
+        Sw=None,
+        Sb=None,
     ):
-        super(FewShotNCALoss, self).__init__()
+        super().__init__()
         self.temperature = torch.tensor(float(temperature), requires_grad=True).cuda()
         self.cls = classes
         self.batch_size = batch_size
         self.frac_negative_samples = frac_negative_samples
         self.frac_positive_samples = frac_positive_samples
+
+    def FDA(self, input_cpu, positive_matrix, negative_matrix):
+        proto_m = torch.mean(input_cpu, dim=0)
+
+        Sw = torch.zeros_like(proto_m.unsqueeze(-1) @ proto_m.unsqueeze(0))
+        Sb = torch.zeros_like(Sw)
+
+        n_classes = positive_matrix.size(0)
+        prototypes = []
+        for i in range(n_classes):
+            class_samples = input_cpu[positive_matrix[i] == 1]
+            if len(class_samples) == 0:
+                continue
+
+            class_mean = torch.mean(class_samples, dim=0)
+            prototypes.append(class_mean)
+
+            for sample in class_samples:
+                diff_sw = sample - class_mean
+                Sw += diff_sw.unsqueeze(-1) @ diff_sw.unsqueeze(0)
+
+        for i in range(negative_matrix.size(0)):
+            for j in range(negative_matrix.size(1)):
+                if negative_matrix[i][j] == 1:
+                    diff_sb = input_cpu[i] - input_cpu[j]
+                    Sb += diff_sb.unsqueeze(-1) @ diff_sb.unsqueeze(0)
+
+        self.Sw = Sw
+        self.Sb = Sb
+        return self.Sw, self.Sb
 
     def forward(self, pred, target):
         n, d = pred.shape
@@ -31,7 +63,7 @@ class FewShotNCALoss(torch.nn.Module):
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
-
+        # dist_m = torch.exp(1 * p_norm / self.temperature).cuda()
         # create matrix identifying all positive pairs
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
@@ -62,6 +94,7 @@ class FewShotNCALoss(torch.nn.Module):
             negatives_matrix = negatives_matrix * mask
             denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
         else:
+            # denominators = torch.log(torch.sum(dist * negatives_matrix, axis=0))
             denominators = torch.sum(dist * negatives_matrix, axis=0)
 
         if self.frac_positive_samples < 1:
@@ -83,13 +116,22 @@ class FewShotNCALoss(torch.nn.Module):
             positives_matrix = positives_matrix * mask
             numerators = torch.sum(dist * positives_matrix, axis=0).cuda()
         else:
+            # numerators = torch.log(torch.sum(dist_m * positives_matrix, axis=0))
             numerators = torch.sum(dist * positives_matrix, axis=0)
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
+        # frac = numerators / (-1 * numerators - denominators)
         frac = numerators / (numerators + denominators)
 
-        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
+        self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
+
+        reg = 1e-6  # A small regularization term
+        tr_ratio = torch.exp(-torch.trace(self.Sb)) / (
+            torch.exp(-torch.trace(self.Sw)) + reg
+        )
+
+        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n + tr_ratio
 
         return loss
 

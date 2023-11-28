@@ -289,6 +289,7 @@ def main():
 
     # at the end of training, evaluate on the VAL set with the best performing epoch of the model just trained
     # on more epochs than during training
+    """
     extract_and_evaluate(
         model,
         train_loader_for_avg,
@@ -316,7 +317,7 @@ def main():
         print_stdout=True,
         expm_id=expm_id,
     )
-
+    """
     tb_writer_train.close()
     tb_writer_val.close()
 
