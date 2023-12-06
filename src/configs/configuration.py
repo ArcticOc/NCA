@@ -3,7 +3,7 @@ import configargparse
 # Constants for default values
 DEFAULT_DATASET = "miniimagenet"
 DEFAULT_WORKERS = 60
-DEFAULT_EPOCHS = 150
+DEFAULT_EPOCHS = 120
 DEFAULT_NUM_CLASSES = 0
 DEFAULT_START_EPOCH = 0
 DEFAULT_BATCH_SIZE = 512

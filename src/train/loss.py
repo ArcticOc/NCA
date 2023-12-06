@@ -53,6 +53,12 @@ class FewShotNCALoss(torch.nn.Module):
         self.Sb = Sb
         return self.Sw, self.Sb
 
+    def min_max_normalize(self, tensor):
+        min_val = tensor.min()
+        max_val = tensor.max()
+        normalized = (tensor - min_val) / (max_val - min_val).cuda()
+        return normalized
+
     def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
@@ -62,8 +68,9 @@ class FewShotNCALoss(torch.nn.Module):
         p_norm = torch.pow(torch.cdist(pred, pred), 2)
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
+        p_norm = self.min_max_normalize(p_norm)
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
-        # dist_m = torch.exp(1 * p_norm / self.temperature).cuda()
+        dist_m = torch.exp(p_norm / self.temperature).cuda()
         # create matrix identifying all positive pairs
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
@@ -92,8 +99,7 @@ class FewShotNCALoss(torch.nn.Module):
             negatives_matrix = negatives_matrix * mask
             denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
         else:
-            # denominators = torch.log(torch.sum(dist * negatives_matrix, axis=0))
-            denominators = torch.sum(dist * negatives_matrix, axis=0)
+            denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
 
         if self.frac_positive_samples < 1:
             # create a new mask
@@ -114,15 +120,18 @@ class FewShotNCALoss(torch.nn.Module):
             positives_matrix = positives_matrix * mask
             numerators = torch.sum(dist * positives_matrix, axis=0).cuda()
         else:
-            # numerators = torch.log(torch.sum(dist_m * positives_matrix, axis=0))
-            numerators = torch.sum(dist * positives_matrix, axis=0)
+            numerators = torch.exp(
+                -1 * torch.log(torch.sum(dist_m * positives_matrix, axis=0))
+            ).cuda()
+
+            # numerators = torch.sum(dist * positives_matrix, axis=0)
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
         # frac = numerators / (-1 * numerators - denominators)
         frac = numerators / (numerators + denominators)
 
-        self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
+        # self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
         # reg = 1e-6  # A small regularization term
         # tr_ratio = torch.exp(-torch.trace(self.Sb)) / (torch.exp(-torch.trace(self.Sw)) + reg)
