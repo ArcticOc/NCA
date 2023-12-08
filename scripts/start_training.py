@@ -90,7 +90,7 @@ def main():
 
     # create model and move it to GPU with id rank
     device_id = rank % torch.cuda.device_count()
-    model = model().to(device_id)
+    model.to(device_id)
     model = DDP(model, device_ids=[device_id])
 
     # define xent loss function (criterion) and optimizer
