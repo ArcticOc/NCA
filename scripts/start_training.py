@@ -6,11 +6,12 @@ from pprint import PrettyPrinter
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import torch.nn.parallel
+import torch.distributed as dist
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 from tensorboardX import SummaryWriter
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 import src.models as models
 from src.configs import configuration
@@ -82,13 +83,21 @@ def main():
         use_fc=args.xent_weight > 0 or args.pretrained_model,
     )
 
-    model = torch.nn.DataParallel(model).cuda()
+    # model = torch.nn.DataParallel(model).cuda()
+    dist.init_process_group("nccl")
+    rank = dist.get_rank()
+    print(f"Start running basic DDP example on rank {rank}.")
+
+    # create model and move it to GPU with id rank
+    device_id = rank % torch.cuda.device_count()
+    model = model().to(device_id)
+    model = DDP(model, device_ids=[device_id])
 
     # define xent loss function (criterion) and optimizer
     xent = LGMLoss(
         args.num_classes,
     ).cuda()
-    print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
+    # print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
 
     # either choose contrastive loss or
     if args.contrastiveloss:
