@@ -68,7 +68,6 @@ class FewShotNCALoss(torch.nn.Module):
         p_norm = torch.pow(torch.cdist(pred, pred), 2)
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
-        p_norm = self.min_max_normalize(p_norm)
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
         dist_m = torch.exp(p_norm / self.temperature).cuda()
         # create matrix identifying all positive pairs
@@ -97,9 +96,9 @@ class FewShotNCALoss(torch.nn.Module):
 
             # create random negatives mask
             negatives_matrix = negatives_matrix * mask
-            denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
+            denominators = torch.sum(dist * negatives_matrix, axis=0)
         else:
-            denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
+            denominators = torch.sum(dist * negatives_matrix, axis=0)
 
         if self.frac_positive_samples < 1:
             # create a new mask
@@ -118,11 +117,11 @@ class FewShotNCALoss(torch.nn.Module):
             mask[choice[:, 0], choice[:, 1]] = 1
 
             positives_matrix = positives_matrix * mask
-            numerators = torch.sum(dist * positives_matrix, axis=0).cuda()
+            numerators = torch.sum(dist * positives_matrix, axis=0)
         else:
             numerators = torch.exp(
                 -1 * torch.log(torch.sum(dist_m * positives_matrix, axis=0))
-            ).cuda()
+            )
 
             # numerators = torch.sum(dist * positives_matrix, axis=0)
 
