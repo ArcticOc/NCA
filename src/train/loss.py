@@ -64,16 +64,6 @@ class FewShotNCALoss(torch.nn.Module):
         distance = sum_abs_diff_p ** (1 / p)
         return distance
 
-    def minkowski_distance(self, x, y, p=0.3):
-        diff = x.unsqueeze(1) - y.unsqueeze(0)
-
-        abs_diff_p = torch.abs(diff) ** p
-
-        sum_abs_diff_p = torch.sum(abs_diff_p, dim=-1)
-
-        distance = sum_abs_diff_p ** (1 / p)
-        return distance
-
     def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
