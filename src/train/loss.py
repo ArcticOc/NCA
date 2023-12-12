@@ -77,9 +77,11 @@ class FewShotNCALoss(torch.nn.Module):
         # create matrix identifying all positive pairs
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
-        positives_matrix = (bool_matrix.to(dtype=torch.int16) - self.eye).cuda()
+        positives_matrix = (
+            torch.tensor(bool_matrix, dtype=torch.int16).cuda() - self.eye
+        ).cuda()
         # negative matrix is the opposite using ~ as not operator
-        negatives_matrix = (~bool_matrix).to(dtype=torch.int16).cuda()
+        negatives_matrix = torch.tensor(~bool_matrix, dtype=torch.int16).cuda()
 
         denominators = torch.sum(dist * negatives_matrix, axis=0)
 
@@ -92,10 +94,12 @@ class FewShotNCALoss(torch.nn.Module):
 
         # self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
-        # reg = 1e-6  # A small regularization term
-        # tr_ratio = torch.exp(-torch.trace(self.Sb)) / (torch.exp(-torch.trace(self.Sw)) + reg)
+        reg = 1e-6  # A small regularization term
+        tr_ratio = torch.exp(-torch.trace(self.Sb)) / (
+            torch.exp(-torch.trace(self.Sw)) + reg
+        )
 
-        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
+        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n + tr_ratio
 
         return loss
 
