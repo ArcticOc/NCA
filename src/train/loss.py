@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -52,17 +53,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.Sw = Sw
         self.Sb = Sb
         return self.Sw, self.Sb
-"""
-
-    def minkowski_distance(self, x, y, p=0.3):
-        diff = x.unsqueeze(1) - y.unsqueeze(0)
-
-        abs_diff_p = torch.abs(diff) ** p
-
-        sum_abs_diff_p = torch.sum(abs_diff_p, dim=-1)
-
-        distance = sum_abs_diff_p ** (1 / p)
-        return distance
+        """
 
     def forward(self, pred, target):
         n, d = pred.shape
@@ -70,13 +61,11 @@ class FewShotNCALoss(torch.nn.Module):
         self.eye = torch.eye(target.shape[0]).cuda()
 
         # compute distance
-        # p_norm = torch.pow(torch.cdist(pred, pred), 2)
-        p_norm = self.minkowski_distance(pred, pred, p=0.3)
+        p_norm = torch.pow(torch.cdist(pred, pred), 2)
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
-        # dist_m = torch.exp(p_norm / self.temperature).cuda()
-        # dist = self.minkowski_distance(pred, pred, p=0.3).cuda()
+        # dist_m = torch.exp(1 * p_norm / self.temperature).cuda()
         # create matrix identifying all positive pairs
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
@@ -86,13 +75,55 @@ class FewShotNCALoss(torch.nn.Module):
         # negative matrix is the opposite using ~ as not operator
         negatives_matrix = torch.tensor(~bool_matrix, dtype=torch.int16).cuda()
 
-        denominators = torch.sum(dist * negatives_matrix, axis=0)
+        # sampling random elements for the negatives
+        if self.frac_negative_samples < 1:
+            # create a new mask
+            mask = torch.zeros(n, n).cuda()
 
-        numerators = torch.sum(dist * positives_matrix, axis=0)
+            negatives_idx = (negatives_matrix == 1).nonzero()
+
+            n_to_sample = int(negatives_idx.shape[0] * self.frac_negative_samples)
+
+            choice = np.random.choice(
+                negatives_idx.shape[0], size=n_to_sample, replace=False
+            )
+
+            choice = negatives_idx[choice, :]
+
+            mask[choice[:, 0], choice[:, 1]] = 1
+
+            # create random negatives mask
+            negatives_matrix = negatives_matrix * mask
+            denominators = torch.sum(dist * negatives_matrix, axis=0).cuda()
+        else:
+            # denominators = torch.log(torch.sum(dist * negatives_matrix, axis=0))
+            denominators = torch.sum(dist * negatives_matrix, axis=0)
+
+        if self.frac_positive_samples < 1:
+            # create a new mask
+            mask = torch.zeros(n, n).cuda()
+
+            positives_idx = (positives_matrix == 1).nonzero()
+
+            n_to_sample = int(positives_idx.shape[0] * self.frac_positive_samples)
+
+            choice = np.random.choice(
+                positives_idx.shape[0], size=n_to_sample, replace=False
+            )
+
+            choice = positives_idx[choice, :]
+
+            mask[choice[:, 0], choice[:, 1]] = 1
+
+            positives_matrix = positives_matrix * mask
+            numerators = torch.sum(dist * positives_matrix, axis=0).cuda()
+        else:
+            # numerators = torch.log(torch.sum(dist_m * positives_matrix, axis=0))
+            numerators = torch.sum(dist * positives_matrix, axis=0)
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
-
+        # frac = numerators / (-1 * numerators - denominators)
         frac = numerators / (numerators + denominators)
         """
         self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)

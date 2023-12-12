@@ -127,8 +127,8 @@ def main():
         )
     else:
         train_loader = get_dataloader(
-            "train", args, not args.disable_train_augment, shuffle=None
-        )  # shuffle is None because we use a custom sampler
+            "train", args, not args.disable_train_augment, shuffle=True
+        )
 
     # init train loader used for centering
     train_loader_for_avg = get_dataloader(
