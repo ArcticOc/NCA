@@ -3,7 +3,6 @@ import pickle
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR, StepLR
-from torch.utils.data.distributed import DistributedSampler as Sampler
 
 import src.datasets as datasets
 
@@ -32,7 +31,7 @@ def get_dataloader(split, args, aug=False, shuffle=True, out_name=False, sample=
     sets = datasets.DatasetFolder(
         args.data, args.split_dir, split, transform, out_name=out_name
     )
-    DDP_sampler = Sampler(sets)
+
     if sample is not None:
         # this is for prototypical network training
         sampler = datasets.CategoriesSampler(
@@ -56,7 +55,7 @@ def get_dataloader(split, args, aug=False, shuffle=True, out_name=False, sample=
             loader = torch.utils.data.DataLoader(
                 sets,
                 batch_size=args.batch_size,
-                sampler=DDP_sampler,
+                shuffle=shuffle,
                 num_workers=args.workers,
                 pin_memory=True,
             )
