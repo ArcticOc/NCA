@@ -55,13 +55,24 @@ class FewShotNCALoss(torch.nn.Module):
         return self.Sw, self.Sb
 """
 
+    def minkowski_distance(self, x, y, p=0.3):
+        diff = x.unsqueeze(1) - y.unsqueeze(0)
+
+        abs_diff_p = torch.abs(diff) ** p
+
+        sum_abs_diff_p = torch.sum(abs_diff_p, dim=-1)
+
+        distance = sum_abs_diff_p ** (1 / p)
+        return distance
+
     def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.shape[0]).cuda()
 
         # compute distance
-        p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        # p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        p_norm = self.minkowski_distance(pred, pred, p=0.3)
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
