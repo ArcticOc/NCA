@@ -22,6 +22,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.frac_negative_samples = frac_negative_samples
         self.frac_positive_samples = frac_positive_samples
 
+    """
     def FDA(self, input_cpu, positive_matrix, negative_matrix):
         proto_m = torch.mean(input_cpu, dim=0)
 
@@ -51,6 +52,17 @@ class FewShotNCALoss(torch.nn.Module):
         self.Sw = Sw
         self.Sb = Sb
         return self.Sw, self.Sb
+"""
+
+    def minkowski_distance(self, x, y, p=0.3):
+        diff = x.unsqueeze(1) - y.unsqueeze(0)
+
+        abs_diff_p = torch.abs(diff) ** p
+
+        sum_abs_diff_p = torch.sum(abs_diff_p, dim=-1)
+
+        distance = sum_abs_diff_p ** (1 / p)
+        return distance
 
     def minkowski_distance(self, x, y, p=0.3):
         diff = x.unsqueeze(1) - y.unsqueeze(0)
@@ -68,7 +80,8 @@ class FewShotNCALoss(torch.nn.Module):
         self.eye = torch.eye(target.shape[0]).cuda()
 
         # compute distance
-        p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        # p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        p_norm = self.minkowski_distance(pred, pred, p=0.3)
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
@@ -91,15 +104,15 @@ class FewShotNCALoss(torch.nn.Module):
         denominators[denominators < 1e-10] = 1e-10
 
         frac = numerators / (numerators + denominators)
-
-        # self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
+        """
+        self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
         reg = 1e-6  # A small regularization term
         tr_ratio = torch.exp(-torch.trace(self.Sb)) / (
             torch.exp(-torch.trace(self.Sw)) + reg
         )
-
-        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n + tr_ratio
+        """
+        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
 
         return loss
 
