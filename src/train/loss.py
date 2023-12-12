@@ -52,11 +52,15 @@ class FewShotNCALoss(torch.nn.Module):
         self.Sb = Sb
         return self.Sw, self.Sb
 
-    def min_max_normalize(self, tensor):
-        min_val = tensor.min()
-        max_val = tensor.max()
-        normalized = (tensor - min_val) / (max_val - min_val).cuda()
-        return normalized
+    def minkowski_distance(self, x, y, p=0.3):
+        diff = x.unsqueeze(1) - y.unsqueeze(0)
+
+        abs_diff_p = torch.abs(diff) ** p
+
+        sum_abs_diff_p = torch.sum(abs_diff_p, dim=-1)
+
+        distance = sum_abs_diff_p ** (1 / p)
+        return distance
 
     def forward(self, pred, target):
         n, d = pred.shape
@@ -68,7 +72,8 @@ class FewShotNCALoss(torch.nn.Module):
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
-        dist_m = torch.exp(p_norm / self.temperature).cuda()
+        # dist_m = torch.exp(p_norm / self.temperature).cuda()
+        # dist = self.minkowski_distance(pred, pred, p=0.3).cuda()
         # create matrix identifying all positive pairs
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
@@ -82,11 +87,8 @@ class FewShotNCALoss(torch.nn.Module):
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
-        # frac = numerators / (-1 * numerators - denominators)
-        f_a = numerators
-        f_b = numerators + denominators
-        # frac = numerators / (numerators + denominators)
-        frac = f_a / f_b
+
+        frac = numerators / (numerators + denominators)
 
         # self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
