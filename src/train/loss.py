@@ -23,6 +23,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.frac_negative_samples = frac_negative_samples
         self.frac_positive_samples = frac_positive_samples
 
+    """
     def FDA(self, input_cpu, positive_matrix, negative_matrix):
         proto_m = torch.mean(input_cpu, dim=0)
 
@@ -52,6 +53,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.Sw = Sw
         self.Sb = Sb
         return self.Sw, self.Sb
+"""
 
     def forward(self, pred, target):
         n, d = pred.shape
@@ -123,15 +125,15 @@ class FewShotNCALoss(torch.nn.Module):
         denominators[denominators < 1e-10] = 1e-10
         # frac = numerators / (-1 * numerators - denominators)
         frac = numerators / (numerators + denominators)
-
+        """
         self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
         reg = 1e-6  # A small regularization term
         tr_ratio = torch.exp(-torch.trace(self.Sb)) / (
             torch.exp(-torch.trace(self.Sw)) + reg
         )
-
-        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n + tr_ratio
+        """
+        loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
 
         return loss
 
