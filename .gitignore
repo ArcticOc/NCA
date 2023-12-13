@@ -166,3 +166,5 @@ split/
 expm_args/
 runs/
 src/configs/configuration.py
+.csv
+src/configs/configuration.py

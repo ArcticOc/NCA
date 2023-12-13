@@ -60,7 +60,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.eye = torch.eye(target.shape[0]).cuda()
 
         # compute distance
-        p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        p_norm = torch.pow(torch.cdist(pred, pred), 1)
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
@@ -69,10 +69,11 @@ class FewShotNCALoss(torch.nn.Module):
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
         positives_matrix = (
-            torch.tensor(bool_matrix, dtype=torch.int16).cuda() - self.eye
-        ).cuda()
+            bool_matrix.clone().detach().type(torch.int16).cuda() - self.eye
+        )
+
         # negative matrix is the opposite using ~ as not operator
-        negatives_matrix = torch.tensor(~bool_matrix, dtype=torch.int16).cuda()
+        negatives_matrix = (~bool_matrix).clone().detach().type(torch.int16).cuda()
 
         # sampling random elements for the negatives
 
@@ -134,3 +135,7 @@ class LGMLoss(torch.nn.Module):
         )
         loss = F.cross_entropy(logits_with_margin, labels) + 0.1 * likelihood_reg_loss
         return loss
+
+
+class SupervisedContrastiveLoss:
+    pass
