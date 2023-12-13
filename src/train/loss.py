@@ -64,7 +64,7 @@ class FewShotNCALoss(torch.nn.Module):
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()
-        # dist_m = torch.exp(1 * p_norm / self.temperature).cuda()
+        dist_m = torch.exp(1 * p_norm / self.temperature).cuda()
         # create matrix identifying all positive pairs
         bool_matrix = target[:, None] == target[:, None].T
         # substracting identity matrix removes positive pair with itself
@@ -80,13 +80,13 @@ class FewShotNCALoss(torch.nn.Module):
         # denominators = torch.log(torch.sum(dist * negatives_matrix, axis=0))
         denominators = torch.sum(dist * negatives_matrix, axis=0)
 
-        # numerators = torch.log(torch.sum(dist_m * positives_matrix, axis=0))
-        numerators = torch.sum(dist * positives_matrix, axis=0)
+        numerators = torch.sum(dist_m * positives_matrix, axis=0)
+        # numerators = torch.sum(dist * positives_matrix, axis=0)
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
-        # frac = numerators / (-1 * numerators - denominators)
-        frac = numerators / (numerators + denominators)
+        frac = 1 / (1 + numerators * denominators)
+        # frac = numerators / (numerators + denominators)
         """
         self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
