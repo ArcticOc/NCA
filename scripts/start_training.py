@@ -82,7 +82,9 @@ def main():
         use_fc=args.xent_weight > 0 or args.pretrained_model,
     )
 
-    model = torch.nn.DataParallel(model).cuda()
+    # model = torch.nn.DataParallel(model).cuda()
+    device = torch.device("cuda:0")
+    model = model.to(device)
 
     # define xent loss function (criterion) and optimizer
     xent = LGMLoss(
