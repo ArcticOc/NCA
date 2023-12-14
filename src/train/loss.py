@@ -80,13 +80,13 @@ class FewShotNCALoss(torch.nn.Module):
         # denominators = torch.log(torch.sum(dist * negatives_matrix, axis=0))
         denominators = torch.sum(dist * negatives_matrix, axis=0)
 
-        numerators = torch.sum(dist_m * positives_matrix, axis=0)
-        # numerators = torch.sum(dist * positives_matrix, axis=0)
+        # numerators = torch.sum(dist_m * positives_matrix, axis=0)
+        numerators = torch.sum(dist * positives_matrix, axis=0)
 
         # avoiding nan errors
         denominators[denominators < 1e-10] = 1e-10
-        frac = 1 / (1 + numerators * denominators)
-        # frac = numerators / (numerators + denominators)
+        # frac = 1 / (1 + numerators * denominators)
+        frac = numerators / (numerators + denominators)
         """
         self.Sw, self.Sb = self.FDA(pred, positives_matrix, negatives_matrix)
 
