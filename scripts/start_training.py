@@ -6,6 +6,7 @@ from pprint import PrettyPrinter
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+import torch.nn as nn
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
@@ -16,7 +17,7 @@ import src.models as models
 from src.configs import configuration
 from src.configs.get_configs import get_dataloader, get_optimizer, get_scheduler
 from src.configs.load_yaml import load_dataset_yaml
-from src.train.loss import FewShotNCALoss, LGMLoss, SupervisedContrastiveLoss
+from src.train.loss import FewShotNCALoss, SupervisedContrastiveLoss
 from src.train.opt_supportset import optimize_full_model_episodic
 from src.train.train import train
 from src.utils.evaluation import (
@@ -85,9 +86,8 @@ def main():
     model = torch.nn.DataParallel(model).cuda()
 
     # define xent loss function (criterion) and optimizer
-    xent = LGMLoss(
-        args.num_classes,
-    ).cuda()
+    xent = nn.CrossEntropyLoss().cuda()
+
     print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
 
     # either choose contrastive loss or
@@ -102,16 +102,14 @@ def main():
             args.num_classes,
             batch_size=args.batch_size,
             temperature=args.temperature,
-            frac_negative_samples=args.negatives_frac_random,
-            frac_positive_samples=args.positives_frac_random,
+
         ).cuda()
         # loss_norm used for computing validation NCA loss
         loss_norm = FewShotNCALoss(
             args.num_classes,
             batch_size=args.batch_size,
             temperature=args.temperature,
-            frac_negative_samples=1,
-            frac_positive_samples=1,
+
         ).cuda()
 
     # train loader is different when training protonets, due to batch creation
