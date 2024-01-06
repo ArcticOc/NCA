@@ -14,6 +14,19 @@ def pmin(D, M, T):
     return -torch.logsumexp(-D / T + mask, dim=-1) * T
 
 
+INF = 1e3
+
+
+def pmax(D, M, T):
+    mask = torch.where(M, 0.0, -INF)
+    return torch.logsumexp(D / T + mask, dim=-1) * T
+
+
+def pmin(D, M, T):
+    mask = torch.where(M, 0.0, -INF)
+    return -torch.logsumexp(-D / T + mask, dim=-1) * T
+
+
 class FewShotNCALoss(torch.nn.Module):
     def __init__(
         self,
@@ -57,6 +70,9 @@ class FewShotNCALoss(torch.nn.Module):
         # denominators[denominators < 1e-10] = 1e-10
         # temp = numerators * denominators
         # frac = 1 / (1 + numerators * denominators)
+        # denominators[denominators < 1e-10] = 1e-10
+        # temp = numerators * denominators
+        # frac = 1 / (1 + numerators * denominators)
         # frac = numerators / (numerators + denominators)
 
         # loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
@@ -66,6 +82,7 @@ class FewShotNCALoss(torch.nn.Module):
 
 
 class LGMLoss(torch.nn.Module):
+    pass
     pass
 
 

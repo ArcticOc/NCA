@@ -88,6 +88,8 @@ def main():
     # define xent loss function (criterion) and optimizer
     xent = nn.CrossEntropyLoss().cuda()
 
+    xent = nn.CrossEntropyLoss().cuda()
+
     print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
 
     # either choose contrastive loss or
