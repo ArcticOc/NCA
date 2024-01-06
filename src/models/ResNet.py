@@ -215,6 +215,7 @@ def resnet12(**kwargs):
     """Constructs a ResNet-12 model."""
     print("\n>> Using custom ResNet12 architecture")
     model = ResNet(BasicBlock, [1, 1, 2, 1], widths=[64, 160, 320, 640], **kwargs)
+    print(">> Done.\n")
     return model
 
 
