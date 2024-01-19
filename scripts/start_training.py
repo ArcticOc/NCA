@@ -246,7 +246,7 @@ def main():
                 val_loader, model, loss_norm, xent, args
             )
             tb_writer_val.add_scalar(
-                "Loss/SoftNN", nca_loss_val, epoch * len(train_loader)
+                "Loss/NCA_Val", nca_loss_val, epoch * len(train_loader)
             )
             if args.xent_weight > 0:
                 tb_writer_val.add_scalar(

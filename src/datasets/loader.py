@@ -16,7 +16,7 @@ class DatasetFolder(object):
 
         data, ori_labels = [x[0] for x in split], [x[1] for x in split]
         label_key = sorted(np.unique(np.array(ori_labels)))
-        label_map = dict(zip(label_key, range(len(label_key))))
+        label_map = dict(zip(label_key, range(len(label_key)), strict=True))
         mapped_labels = [label_map[x] for x in ori_labels]
 
         self.split_type = split_type
