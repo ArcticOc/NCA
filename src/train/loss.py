@@ -128,11 +128,3 @@ class FewShotNCALoss(torch.nn.Module):
         loss = F.softplus(denominators - numerators).mean()
 
         return loss """
-
-
-class LGMLoss(torch.nn.Module):
-    pass
-
-
-class SupervisedContrastiveLoss:
-    pass

@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
-import torch.nn as nn
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
@@ -73,7 +72,7 @@ def main():
         feature_dim=args.projection_feat_dim,
         num_classes=args.num_classes,
         projection=args.projection,
-        use_fc=args.xent_weight > 0 or args.pretrained_model,
+        use_fc=False,
     )
     dist.init_process_group("nccl")
     rank = dist.get_rank()
@@ -84,9 +83,6 @@ def main():
     model.to(device_id)
     model = DDP(model, device_ids=[device_id])
     # model = torch.nn.DataParallel(model).cuda()
-
-    # define xent loss function (criterion) and optimizer
-    xent = nn.CrossEntropyLoss().cuda()
 
     print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
 
@@ -102,10 +98,8 @@ def main():
         temperature=args.temperature,
     ).cuda()
 
-    # train loader is different when training protonets, due to batch creation
-
     train_loader = get_dataloader(
-        "train", args, not args.disable_train_augment, shuffle=True
+        "train", args, not args.disable_train_augment, shuffle=False
     )
 
     # init train loader used for centering
@@ -127,7 +121,6 @@ def main():
         train(
             train_loader,
             model,
-            xent,
             loss,
             optimizer,
             epoch,
@@ -140,16 +133,10 @@ def main():
         # evaluate on meta validation set
         if (epoch + 1) % args.val_interval == 0:
             # compute loss on the validation set
-            nca_loss_val, xent_loss_val = validate_loss(
-                val_loader, model, loss_norm, xent, args
-            )
+            nca_loss_val = validate_loss(val_loader, model, loss_norm, args)
             tb_writer_val.add_scalar(
                 "Loss/NCA_Val", nca_loss_val, epoch * len(train_loader)
             )
-            if args.xent_weight > 0:
-                tb_writer_val.add_scalar(
-                    "Loss/X-entropy", xent_loss_val, epoch * len(train_loader)
-                )
             # full evaluation on the val set
             shot1_info, shot5_info = extract_and_evaluate(
                 model,

@@ -48,69 +48,18 @@ def metric_class_type(
 
     # if we don't do soft assignment, and no nearest neighbour (num_NN = 1), then compute
     # the prototypes
-    if (args.num_NN == 1 or shot == 1) and not args.soft_assignment:
-        if args.median_prototype:
-            gallery = np.median(
-                gallery.reshape(args.test_way, shot, gallery.shape[-1]), axis=1
-            )
-        else:
-            gallery = gallery.reshape(args.test_way, shot, gallery.shape[-1]).mean(1)
-        train_label = train_label[::shot]
-        num_NN = 1
-    else:
-        num_NN = args.num_NN
+    num_NN = args.num_NN
 
-    # If we do evaluation with soft assignment we evaluate differently.
-    if args.soft_assignment:
-        subtract = gallery[:, None, :] - query
-        distance = np.exp(-1 * np.sum(subtract**2, axis=2))
-        norm_distance = distance / distance.sum(0)[None, :]
-
-        # we can do kNN if number of shots > 1
-        if num_NN > 1 and shot != 1:
-            # get the closest labels
-            idx = np.argsort(norm_distance, axis=0)[-num_NN:]
-            nearest_samples_labels = np.take(train_label, idx)
-            nearest_samples_distances = np.sort(norm_distance, axis=0)[-num_NN:]
-
-            weighted_nearest_neighbours = np.zeros(
-                (args.num_classes, nearest_samples_labels.shape[-1])
-            )
-            # sum the total contribution of each example
-            for i, row in enumerate(nearest_samples_labels):
-                for j, element in enumerate(row):
-                    weighted_nearest_neighbours[
-                        element, j
-                    ] += nearest_samples_distances[i, j]
-
-            # predict
-            predictions = np.argmax(weighted_nearest_neighbours, axis=0)
-            acc = (predictions == test_label).mean()
-            return acc
-        else:
-            # reshape the norm_distances and sum the likelihoods to get likelihood for each class
-            norm_distance = norm_distance.reshape(
-                args.test_way, shot, norm_distance.shape[-1]
-            ).sum(1)
-            # get the train labels
-            train_label = train_label[::shot]
-
-            # get predictions
-            prediction_idx = np.argmax(norm_distance, axis=0)
-            predictions = np.take(train_label, prediction_idx)
-            acc = (predictions == test_label).mean()
-            return acc
-    else:
-        # if not doing soft assignment, just compute the nearest neighbors
-        subtract = gallery[:, None, :] - query
-        distance = LA.norm(subtract, 2, axis=-1)
-        idx = np.argpartition(distance, num_NN, axis=0)[:num_NN]
-        nearest_samples = np.take(train_label, idx)
-        out = mode(nearest_samples, axis=0)[0]
-        out = out.astype(int)
-        test_label = np.array(test_label)
-        acc = (out == test_label).mean()
-        return acc
+    # if not doing soft assignment, just compute the nearest neighbors
+    subtract = gallery[:, None, :] - query
+    distance = LA.norm(subtract, 2, axis=-1)
+    idx = np.argpartition(distance, num_NN, axis=0)[:num_NN]
+    nearest_samples = np.take(train_label, idx)
+    out = mode(nearest_samples, axis=0)[0]
+    out = out.astype(int)
+    test_label = np.array(test_label)
+    acc = (out == test_label).mean()
+    return acc
 
 
 def meta_evaluate(
@@ -155,7 +104,7 @@ def meta_evaluate(
 
 def extract_feature(train_loader, val_loader, model, args, tag="last"):
     # We use the FC layer of the model only if we are combining XENT with NCA loss
-    use_fc = args.xent_weight > 0
+    use_fc = False
     print("\n>> Extracting statistics from training set embeddings")
     model.eval()
     with torch.no_grad():
@@ -190,7 +139,7 @@ def extract_feature(train_loader, val_loader, model, args, tag="last"):
                 fc_outputs = fc_outputs.cpu().data.numpy()
             else:
                 fc_outputs = [None] * outputs.shape[0]
-            for out, fc_out, label in zip(outputs, fc_outputs, labels):
+            for out, fc_out, label in zip(outputs, fc_outputs, labels, strict=False):
                 output_dict[label.item()].append(out)
                 fc_output_dict[label.item()].append(fc_out)
         all_info = [out_mean, fc_out_mean, output_dict, fc_output_dict, out_cov]
@@ -287,7 +236,7 @@ def extract_and_evaluate(
             train_loader_for_avg, eval_loader, model, args
         )
         # When model_name is not passed, we are using the current model checkpoint, which is the same for 1-shot and 5-shot
-        out_mean5, fc_out_mean5, out_dict5, fc_out_dict5, out_cov5 = (
+        out_mean5, fc_out_mean5, out_dict5, fc_out_dict5, out_cov5 = extract_feature(
             out_mean1,
             fc_out_mean1,
             out_dict1,
@@ -347,7 +296,7 @@ def sample_case(ld_dict, shot, args):
     return train_input, test_input, train_label, test_label
 
 
-def validate_loss(val_loader, model, nca_f, xent_f, args):
+def validate_loss(val_loader, model, nca_f, args):
     """
     input:
     :param: val loader. DataLoader with validation images loaded.
@@ -356,18 +305,13 @@ def validate_loss(val_loader, model, nca_f, xent_f, args):
     :xent_f: cross-entropy criterion
     :args: arguments passed from command line
     """
-    nca_losses, xent_losses = AverageMeter(), AverageMeter()
+    nca_losses = AverageMeter()
     model.eval()
 
     tqdm_val_loader = warp_tqdm(val_loader, args)
     with torch.no_grad():
         for input, target in tqdm_val_loader:
-            if args.xent_weight > 0:
-                features, fc_output = model(input, use_fc=True)
-                xent_loss = xent_f(fc_output, target.cuda(non_blocking=True))
-                xent_losses.update(xent_loss)
-            else:
-                features, _ = model(input, use_fc=False)
+            features, _ = model(input, use_fc=False)
 
             nca_loss_val = nca_f(features, target)
             nca_losses.update(nca_loss_val.item(), input.size(0))
@@ -375,4 +319,4 @@ def validate_loss(val_loader, model, nca_f, xent_f, args):
                 "NCA loss (val): {:.2f}".format(nca_losses.avg)
             )
 
-    return nca_losses.avg, xent_losses.avg
+    return nca_losses.avg
