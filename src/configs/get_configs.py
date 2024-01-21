@@ -3,11 +3,12 @@ import pickle
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR, StepLR
+from torch.utils.data.distributed import DistributedSampler as Sampler
 
 import src.datasets as datasets
 
 
-def get_dataloader(split, args, aug=False, shuffle=True, out_name=False, sample=None):
+def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample=None):
     """
     returns the dataloader, which either loads the training, validation or test set_description
     :param split (str): load the train, val or test
@@ -31,34 +32,16 @@ def get_dataloader(split, args, aug=False, shuffle=True, out_name=False, sample=
     sets = datasets.DatasetFolder(
         args.data, args.split_dir, split, transform, out_name=out_name
     )
+    DDP_Sampler = Sampler(sets)
 
-    if sample is not None:
-        # this is for prototypical network training
-        sampler = datasets.CategoriesSampler(
-            sets.labels, args.episode_no_replacement_sampling, *sample
-        )
-
-        loader = torch.utils.data.DataLoader(
-            sets, batch_sampler=sampler, num_workers=args.workers, pin_memory=True
-        )
-    else:
-        # this is for normal sampling
-        if args.replacement_sampling:
-            sampler = datasets.ReplacementSampler(
-                sets.labels, args.proto_train_iter, args.batch_size
-            )
-
-            loader = torch.utils.data.DataLoader(
-                sets, batch_sampler=sampler, num_workers=args.workers, pin_memory=True
-            )
-        else:
-            loader = torch.utils.data.DataLoader(
-                sets,
-                batch_size=args.batch_size,
-                shuffle=shuffle,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
+    loader = torch.utils.data.DataLoader(
+        sets,
+        batch_size=args.batch_size,
+        shuffle=False,
+        sampler=DDP_Sampler,
+        num_workers=args.workers,
+        pin_memory=True,
+    )
     return loader
 
 

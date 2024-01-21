@@ -65,7 +65,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.cls = classes
         self.batch_size = batch_size
 
-    """ def forward(self, pred, target):
+    def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.shape[0]).cuda()
@@ -78,7 +78,9 @@ class FewShotNCALoss(torch.nn.Module):
         # create matrix identifying all positive pairs
         bool_matrix = (target[:, None] == target[:, None].T).cuda()
         # substracting identity matrix removes positive pair with itself
-        positives_matrix = (bool_matrix.clone().detach().type(torch.int16).cuda() - self.eye)
+        positives_matrix = (
+            bool_matrix.clone().detach().type(torch.int16).cuda() - self.eye
+        )
         # negative matrix is the opposite using ~ as not operator
         negatives_matrix = (~bool_matrix).clone().detach().type(torch.int16).cuda()
         # sampling random elements for the negatives
@@ -92,9 +94,10 @@ class FewShotNCALoss(torch.nn.Module):
 
         loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
 
-        return loss """
+        return loss
 
-    def forward(self, pred, target):
+
+"""     def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.size(0), dtype=torch.bool).cuda()
@@ -124,7 +127,7 @@ class FewShotNCALoss(torch.nn.Module):
         _temp = denominators - numerators
         loss = F.softplus(denominators - numerators).mean()
 
-        return loss
+        return loss """
 
 
 class LGMLoss(torch.nn.Module):

@@ -2,7 +2,7 @@ import time
 
 import torch
 
-from src.utils.evaluation import AverageMeter, get_metric, warp_tqdm
+from src.utils.evaluation import AverageMeter, warp_tqdm
 
 
 def train(
@@ -37,116 +37,31 @@ def train(
 
         target = target.cuda(non_blocking=True)
 
-        if args.xent_weight > 0:
-            # add xent loss to total loss
-            features, output = model(input, use_fc=True)
-            nca_loss = nca_f(features, target)
-            xent_loss = xent_f(output, target)
-            total_loss = (
-                1 - args.xent_weight
-            ) * nca_loss + args.xent_weight * xent_loss
-            xent_losses.update(xent_loss.item(), input.size(0))
-            tb_writer_train.add_scalar(
-                "Loss/X-entropy", xent_loss.item(), epoch * len(train_loader) + i
+        # we have to shuffle the batch for multi-gpu training purposeswhen training with protonets
+        shuffle = torch.randperm(input.shape[0])
+        input = input[shuffle]
+
+        # idx keeps track on how to shuffle back to original order
+        idx = torch.argsort(shuffle)
+
+        # get features
+        features, output = model(input, use_fc=False)
+
+        # shuffle back so protonet loss still works
+        features = features[idx]
+
+        nca_loss = nca_f(features, target)
+        total_loss = nca_loss
+
+        if not args.disable_tqdm:
+            tqdm_train_loader.set_description(
+                "NCA loss (train): {:.3f}".format(nca_losses.avg)
             )
 
-            if not args.disable_tqdm:
-                tqdm_train_loader.set_description(
-                    "NCA loss | Cross-entropy loss (train): {:.3f} | {:.3f}".format(
-                        nca_losses.avg, xent_losses.avg
-                    )
-                )
-        else:
-            # we have to shuffle the batch for multi-gpu training purposes when training with protonets
-            shuffle = torch.randperm(input.shape[0])
-            input = input[shuffle]
-
-            # idx keeps track on how to shuffle back to original order
-            idx = torch.argsort(shuffle)
-
-            # get features
-            features, output = model(input, use_fc=False)
-
-            # shuffle back so protonet loss still works
-            features = features[idx]
-
-            if args.proto_train:
-                # first part of batch is for prototypes
-                shot_proto = features[: args.proto_train_shot * args.proto_train_way]
-
-                # the rest for computing the query set
-                query_proto = features[args.proto_train_shot * args.proto_train_way :]
-
-                # if generating prototypes is disabled, compute the loss differently
-                if args.proto_disable_aggregates:
-                    if args.proto_enable_all_pairs:
-                        # enabling computation between all pairs and not computing
-                        # aggregates is the same as computing the NCA
-                        total_loss = nca_f(features, target)
-                    else:
-                        # compute pairwise distances between all points
-                        distances = -get_metric("euclidean", args)(
-                            query_proto, shot_proto
-                        )
-
-                        target_support = target[
-                            : args.proto_train_shot * args.proto_train_way
-                        ]
-
-                        target_query = target[
-                            args.proto_train_shot * args.proto_train_way :
-                        ]
-
-                        total_loss = query_support_nca_loss(
-                            distances, target_support, target_query, args
-                        )
-                else:
-                    # create prototypes and corresponding targets
-                    shot_proto = shot_proto.reshape(
-                        args.proto_train_way, args.proto_train_shot, -1
-                    ).mean(1)
-
-                    target_support = target[
-                        : args.proto_train_shot * args.proto_train_way
-                    ][0 :: args.proto_train_shot]
-
-                    target_query = target[
-                        args.proto_train_shot * args.proto_train_way :
-                    ]
-
-                    if args.proto_enable_all_pairs:
-                        target = torch.cat([target_query, target_support], 0)
-                        all_features = torch.cat([query_proto, shot_proto], 0)
-
-                        total_loss = nca_f(all_features, target)
-
-                    else:
-                        # compute distances
-                        output = -get_metric("euclidean", args)(query_proto, shot_proto)
-
-                        total_loss = query_support_nca_loss(
-                            output, target_support, target_query, args
-                        )
-
-            else:
-                nca_loss = nca_f(features, target)
-                total_loss = nca_loss
-
-            if not args.disable_tqdm:
-                tqdm_train_loader.set_description(
-                    "NCA loss (train): {:.3f}".format(nca_losses.avg)
-                )
-
-        if not args.proto_train:
-            nca_losses.update(nca_loss.item(), input.size(0))
-            tb_writer_train.add_scalar(
-                "Loss/NCA", nca_loss.item(), epoch * len(train_loader) + i
-            )
-        else:
-            nca_losses.update(total_loss.item(), input.size(0))
-            tb_writer_train.add_scalar(
-                "Loss/NCA", total_loss.item(), epoch * len(train_loader) + i
-            )
+        nca_losses.update(nca_loss.item(), input.size(0))
+        tb_writer_train.add_scalar(
+            "Loss/NCA", nca_loss.item(), epoch * len(train_loader) + i
+        )
 
         # compute gradient and do gradient step
         optimizer.zero_grad()

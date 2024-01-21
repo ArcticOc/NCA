@@ -1,28 +1,27 @@
 import datetime
-import os
 import random
 from pprint import PrettyPrinter
 
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 from tensorboardX import SummaryWriter
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 import src.models as models
 from src.configs import configuration
 from src.configs.get_configs import get_dataloader, get_optimizer, get_scheduler
 from src.configs.load_yaml import load_dataset_yaml
-from src.train.loss import FewShotNCALoss, SupervisedContrastiveLoss
-from src.train.opt_supportset import optimize_full_model_episodic
+from src.train.loss import FewShotNCALoss
 from src.train.train import train
 from src.utils.evaluation import (
     extract_and_evaluate,
-    extract_and_evaluate_allshots,
     validate_loss,
 )
 from src.utils.logs import save_checkpoint
@@ -47,12 +46,6 @@ def main():
 
     # print options as dictionary and save to output
     PrettyPrinter(indent=4).pprint(vars(args))
-
-    # generate some warning messages for arguments which are incompatible
-    if args.xent_weight > 0 and args.proto_train:
-        raise NotImplementedError(
-            "\n>> Cannot train a prototypical network simultaneously with standard crossentropy classification "
-        )
 
     # if seed is set, run will be deterministic for reproducability
     if args.seed is not None:
@@ -82,51 +75,38 @@ def main():
         projection=args.projection,
         use_fc=args.xent_weight > 0 or args.pretrained_model,
     )
+    dist.init_process_group("nccl")
+    rank = dist.get_rank()
+    print(f"Start running DDP on rank {rank}.")
 
-    model = torch.nn.DataParallel(model).cuda()
+    # create model and move it to GPU with id rank
+    device_id = rank % torch.cuda.device_count()
+    model.to(device_id)
+    model = DDP(model, device_ids=[device_id])
+    # model = torch.nn.DataParallel(model).cuda()
 
     # define xent loss function (criterion) and optimizer
     xent = nn.CrossEntropyLoss().cuda()
 
-    xent = nn.CrossEntropyLoss().cuda()
-
     print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
 
-    # either choose contrastive loss or
-    if args.contrastiveloss:
-        # use supervised contrastive loss
-        loss = SupervisedContrastiveLoss(
-            args.num_classes, batch_size=args.batch_size, temperature=args.temperature
-        ).cuda()
-        loss_norm = loss
-    else:
-        loss = FewShotNCALoss(
-            args.num_classes,
-            batch_size=args.batch_size,
-            temperature=args.temperature,
-        ).cuda()
-        # loss_norm used for computing validation NCA loss
-        loss_norm = FewShotNCALoss(
-            args.num_classes,
-            batch_size=args.batch_size,
-            temperature=args.temperature,
-        ).cuda()
+    loss = FewShotNCALoss(
+        args.num_classes,
+        batch_size=args.batch_size,
+        temperature=args.temperature,
+    ).cuda()
+    # loss_norm used for computing validation NCA loss
+    loss_norm = FewShotNCALoss(
+        args.num_classes,
+        batch_size=args.batch_size,
+        temperature=args.temperature,
+    ).cuda()
 
     # train loader is different when training protonets, due to batch creation
-    if args.proto_train:
-        sample_info = [
-            args.proto_train_iter,
-            args.proto_train_way,
-            args.proto_train_shot,
-            args.proto_train_query,
-        ]
-        train_loader = get_dataloader(
-            "train", args, not args.disable_train_augment, sample=sample_info
-        )
-    else:
-        train_loader = get_dataloader(
-            "train", args, not args.disable_train_augment, shuffle=True
-        )
+
+    train_loader = get_dataloader(
+        "train", args, not args.disable_train_augment, shuffle=True
+    )
 
     # init train loader used for centering
     train_loader_for_avg = get_dataloader(
@@ -140,88 +120,6 @@ def main():
     # init optimizer and scheduler
     optimizer = get_optimizer(model, args)
     scheduler = get_scheduler(len(train_loader), optimizer, args)
-
-    if args.resume_model:
-        if os.path.isfile(args.resume_model):
-            checkpoint = torch.load(args.resume_model)
-            args.start_epoch = checkpoint["epoch"]
-            best_accuracy_meter = checkpoint["best_accuracies"]
-            scheduler.load_state_dict(checkpoint["scheduler"])
-            model.load_state_dict(checkpoint["state_dict"])
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            print(
-                "\n>> Resume training for previously trained model (epoch %d)"
-                % args.start_epoch
-            )
-        else:
-            raise NameError("Invalid path name:{}".format(args.resume_model))
-
-    elif args.pretrained_model:
-        if os.path.isfile(args.pretrained_model):
-            checkpoint = torch.load(args.pretrained_model)
-            model.load_state_dict(checkpoint["state_dict"])
-            print("\n>> Loaded pretrained model")
-        else:
-            raise NameError("Invalid path name:{}".format(args.resume_model))
-
-    if args.episode_optimize:
-        sample_info = [
-            args.proto_train_iter,
-            args.proto_train_way,
-            args.proto_train_shot,
-            args.proto_train_query,
-        ]
-        episodic_test_loader = get_dataloader(
-            "test", args, aug=False, sample=sample_info, shuffle=False, out_name=False
-        )
-        optimize_full_model_episodic(
-            episodic_test_loader, train_loader, model, loss, args
-        )
-
-    # evaluate a specific model.
-    if args.evaluate_model:
-        print("\n>> Evaluating previously trained model on the test set")
-        if args.evaluate_all_shots:
-            extract_and_evaluate_allshots(
-                model,
-                train_loader_for_avg,
-                test_loader,
-                "test",
-                args,
-                writer=None,
-                model_name=args.evaluate_model,
-                expm_id=expm_id,
-                t=0,
-                print_stdout=True,
-            )
-        else:
-            print("\n>>> Evaluating Test Set")
-            extract_and_evaluate(
-                model,
-                train_loader_for_avg,
-                test_loader,
-                "test",
-                args,
-                writer=None,
-                model_name=args.evaluate_model,
-                expm_id=expm_id,
-                t=0,
-                print_stdout=True,
-            )
-            print("\n>>> Evaluating Validation Set")
-            extract_and_evaluate(
-                model,
-                train_loader_for_avg,
-                val_loader,
-                "val",
-                args,
-                writer=None,
-                model_name=args.evaluate_model,
-                expm_id=expm_id,
-                t=0,
-                print_stdout=True,
-            )
-        return
 
     tqdm_loop = warp_tqdm(list(range(args.start_epoch, args.epochs)), args)
     for epoch in tqdm_loop:
