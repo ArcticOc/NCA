@@ -46,8 +46,6 @@ def metric_class_type(
         gallery = gallery / LA.norm(gallery, 2, 1)[:, None]
         query = query / LA.norm(query, 2, 1)[:, None]
 
-    # if we don't do soft assignment, and no nearest neighbour (num_NN = 1), then compute
-    # the prototypes
     num_NN = args.num_NN
 
     # if not doing soft assignment, just compute the nearest neighbors
@@ -236,7 +234,7 @@ def extract_and_evaluate(
             train_loader_for_avg, eval_loader, model, args
         )
         # When model_name is not passed, we are using the current model checkpoint, which is the same for 1-shot and 5-shot
-        out_mean5, fc_out_mean5, out_dict5, fc_out_dict5, out_cov5 = extract_feature(
+        out_mean5, fc_out_mean5, out_dict5, fc_out_dict5, out_cov5 = (
             out_mean1,
             fc_out_mean1,
             out_dict1,

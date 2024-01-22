@@ -42,7 +42,7 @@ def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample
         num_workers=args.workers,
         pin_memory=True,
     )
-    return loader
+    return loader, DDP_Sampler
 
 
 def get_metric(metric_type, args):

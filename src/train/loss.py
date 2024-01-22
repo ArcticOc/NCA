@@ -71,7 +71,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.eye = torch.eye(target.shape[0]).cuda()
 
         # compute distance
-        p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        p_norm = torch.pow(torch.cdist(pred, pred), 2).cuda()
         # lower bound distances to avoid NaN errors
         p_norm[p_norm < 1e-10] = 1e-10
         dist = torch.exp(-1 * p_norm / self.temperature).cuda()

@@ -98,18 +98,22 @@ def main():
         temperature=args.temperature,
     ).cuda()
 
-    train_loader = get_dataloader(
+    train_loader, DDP_sampler = get_dataloader(
         "train", args, not args.disable_train_augment, shuffle=False
     )
 
     # init train loader used for centering
-    train_loader_for_avg = get_dataloader(
+    train_loader_for_avg, _ = get_dataloader(
         "train", args, aug=False, shuffle=False, out_name=False
     )
 
     # init standard validation and test loader
-    val_loader = get_dataloader("val", args, aug=False, shuffle=False, out_name=False)
-    test_loader = get_dataloader("test", args, aug=False, shuffle=False, out_name=False)
+    val_loader, _ = get_dataloader(
+        "val", args, aug=False, shuffle=False, out_name=False
+    )
+    test_loader, _ = get_dataloader(
+        "test", args, aug=False, shuffle=False, out_name=False
+    )
 
     # init optimizer and scheduler
     optimizer = get_optimizer(model, args)
@@ -118,6 +122,7 @@ def main():
     tqdm_loop = warp_tqdm(list(range(args.start_epoch, args.epochs)), args)
     for epoch in tqdm_loop:
         # train for one epoch
+        DDP_sampler.set_epoch(epoch)
         train(
             train_loader,
             model,
@@ -128,7 +133,7 @@ def main():
             tb_writer_train,
             args,
         )
-        scheduler.step(epoch)
+        scheduler.step()
 
         # evaluate on meta validation set
         if (epoch + 1) % args.val_interval == 0:

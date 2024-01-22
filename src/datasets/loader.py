@@ -35,7 +35,7 @@ class DatasetFolder(object):
         file_path = os.path.join(
             self.root, self.split_type, self.original_labels[index], self.data[index]
         )
-        print(f"Trying to open: {file_path}")
+        # print(f"Trying to open: {file_path}")
         assert os.path.isfile(file_path), f"File does not exist: {file_path}"
         img = Image.open(file_path).convert("RGB")
         assert os.path.isfile(
