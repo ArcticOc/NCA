@@ -34,7 +34,7 @@ def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample
     )
     DDP_Sampler = Sampler(sets)
 
-    loader = torch.utils.data.DataLoader(
+    ddp_loader = torch.utils.data.DataLoader(
         sets,
         batch_size=args.batch_size,
         shuffle=False,
@@ -42,7 +42,8 @@ def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample
         num_workers=args.workers,
         pin_memory=True,
     )
-    return loader, DDP_Sampler
+
+    return ddp_loader, DDP_Sampler
 
 
 def get_metric(metric_type, args):

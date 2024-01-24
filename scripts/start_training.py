@@ -10,8 +10,8 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-from tensorboardX import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.tensorboard import SummaryWriter
 
 import src.models as models
 from src.configs import configuration
@@ -19,10 +19,7 @@ from src.configs.get_configs import get_dataloader, get_optimizer, get_scheduler
 from src.configs.load_yaml import load_dataset_yaml
 from src.train.loss import FewShotNCALoss
 from src.train.train import train
-from src.utils.evaluation import (
-    extract_and_evaluate,
-    validate_loss,
-)
+from src.utils.evaluation import extract_and_evaluate, validate_loss
 from src.utils.logs import save_checkpoint
 from src.utils.meters import BestAccuracySlots, warp_tqdm
 
@@ -80,7 +77,8 @@ def main():
 
     # create model and move it to GPU with id rank
     device_id = rank % torch.cuda.device_count()
-    model.to(device_id)
+    # model.to(device_id)
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device_id)
     model = DDP(model, device_ids=[device_id])
     # model = torch.nn.DataParallel(model).cuda()
 
@@ -111,9 +109,9 @@ def main():
     val_loader, _ = get_dataloader(
         "val", args, aug=False, shuffle=False, out_name=False
     )
-    test_loader, _ = get_dataloader(
+    """ test_loader, _ = get_dataloader(
         "test", args, aug=False, shuffle=False, out_name=False
-    )
+    ) """
 
     # init optimizer and scheduler
     optimizer = get_optimizer(model, args)
@@ -152,10 +150,8 @@ def main():
                 writer=tb_writer_val,
                 t=epoch * len(train_loader),
             )
-
             # update best accuracies
             is_best1, is_best5 = best_accuracy_meter.update(shot1_info, shot5_info)
-
             save_checkpoint(
                 {
                     "epoch": epoch + 1,

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-INF = 1e10
+INF_ = 1e10
 
 
 def mean(D, M, T):
@@ -13,17 +13,17 @@ def mean(D, M, T):
 
     safe_count = torch.clamp(count, min=1)
     average = masked_sum / safe_count
-    average = torch.where(zero_count_mask, -INF, average)
+    average = torch.where(zero_count_mask, -INF_, average)
     return average
 
 
 def pmax(D, M, T):
-    mask = torch.where(M, 0.0, -INF)
+    mask = torch.where(M, 0.0, -INF_)
     return torch.logsumexp(D / T + mask, dim=-1) * T
 
 
 def pmin(D, M, T):
-    mask = torch.where(M, 0.0, -INF)
+    mask = torch.where(M, 0.0, -INF_)
     return -torch.logsumexp(-D / T + mask, dim=-1) * T
 
 
@@ -65,7 +65,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.cls = classes
         self.batch_size = batch_size
 
-    def forward(self, pred, target):
+    """ def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.shape[0]).cuda()
@@ -94,10 +94,9 @@ class FewShotNCALoss(torch.nn.Module):
 
         loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
 
-        return loss
+        return loss """
 
-
-"""     def forward(self, pred, target):
+    def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.size(0), dtype=torch.bool).cuda()
@@ -105,9 +104,9 @@ class FewShotNCALoss(torch.nn.Module):
         # cos_sim = cosine_similarity(pred, prototypes, target)
 
         # compute distance
-        p_norm = torch.pow(torch.cdist(pred, pred), 2)
+        p_norm = torch.pow(torch.cdist(pred, pred), 2).cuda()
         # lower bound distances to avoid NaN errors
-        dist = -0.5 * p_norm / self.temperature
+        dist = (-0.5 * p_norm / self.temperature).cuda()
 
         # create matrix identifying all positive pairs
         bool_matrix = (target[:, None] == target[:, None].T).cuda()
@@ -119,12 +118,12 @@ class FewShotNCALoss(torch.nn.Module):
         negatives_matrix = (~bool_matrix).cuda()
         # sampling random elements for the negatives
 
-        # denominators = pmax(dist, negatives_matrix, 1)
-        denominators = mean(dist, negatives_matrix, 1)
-        # numerators = pmin(dist, positives_matrix, 2)
-        numerators = mean(dist, positives_matrix, 2)
+        denominators = pmax(dist, negatives_matrix, 1)
+        # denominators = mean(dist, negatives_matrix, 1)
+        numerators = pmin(dist, positives_matrix, 2)
+        # numerators = mean(dist, positives_matrix, 2)
 
-        _temp = denominators - numerators
         loss = F.softplus(denominators - numerators).mean()
+        # loss = F.softplus(numerators - denominators).mean()
 
-        return loss """
+        return loss
