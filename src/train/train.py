@@ -15,9 +15,8 @@ def train(
     tb_writer_train,
     args,
 ):
-    """
-    Function that performs 1 training iteration.
-    """
+    # Function that performs 1 training iteration.
+
     batch_time = AverageMeter()
     data_time = AverageMeter()
     nca_losses = AverageMeter()
@@ -65,6 +64,10 @@ def train(
         # compute gradient and do gradient step
         optimizer.zero_grad()
         total_loss.backward()
+        """ for param in model.parameters():
+            if param.requires_grad:
+                dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM) """
+
         optimizer.step()
 
         # measure elapsed time

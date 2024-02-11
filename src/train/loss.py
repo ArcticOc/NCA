@@ -65,7 +65,7 @@ class FewShotNCALoss(torch.nn.Module):
         self.cls = classes
         self.batch_size = batch_size
 
-    """ def forward(self, pred, target):
+    def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.shape[0]).cuda()
@@ -94,9 +94,9 @@ class FewShotNCALoss(torch.nn.Module):
 
         loss = -1 * torch.sum(torch.log(frac[frac >= 1e-10])) / n
 
-        return loss """
+        return loss
 
-    def forward(self, pred, target):
+    """ def forward(self, pred, target):
         n, d = pred.shape
         # identity matrix needed for masking matrix
         self.eye = torch.eye(target.size(0), dtype=torch.bool).cuda()
@@ -126,4 +126,4 @@ class FewShotNCALoss(torch.nn.Module):
         loss = F.softplus(denominators - numerators).mean()
         # loss = F.softplus(numerators - denominators).mean()
 
-        return loss
+        return loss """

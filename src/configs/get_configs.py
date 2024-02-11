@@ -8,7 +8,7 @@ from torch.utils.data.distributed import DistributedSampler as Sampler
 import src.datasets as datasets
 
 
-def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample=None):
+def get_dataloader(split, args, aug=False, shuffle=True, out_name=False):
     """
     returns the dataloader, which either loads the training, validation or test set_description
     :param split (str): load the train, val or test
@@ -16,8 +16,7 @@ def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample
     :param aug (bool): augment the data using datasets.with_augment
     :param shuffle (bool): shuffle instances in the dataloader
     :param out_name (bool): returns image name in the batch
-    :param sample (list): list of meta_val interation, meta_val way, meta_val shot,
-                          and query. samples few shot method
+    :param sample (list): list of meta_val interation, meta_val way, meta_val shot,and query samples few shot method
 
     :return DataLoader:
     """
@@ -32,12 +31,12 @@ def get_dataloader(split, args, aug=False, shuffle=False, out_name=False, sample
     sets = datasets.DatasetFolder(
         args.data, args.split_dir, split, transform, out_name=out_name
     )
-    DDP_Sampler = Sampler(sets)
+    # Apply DDPSampler
+    DDP_Sampler = Sampler(sets, shuffle=shuffle)
 
     ddp_loader = torch.utils.data.DataLoader(
         sets,
         batch_size=args.batch_size,
-        shuffle=False,
         sampler=DDP_Sampler,
         num_workers=args.workers,
         pin_memory=True,

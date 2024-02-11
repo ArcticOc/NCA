@@ -120,10 +120,9 @@ def extract_feature(train_loader, val_loader, model, args, tag="last"):
         out_mean = np.concatenate(out_mean, axis=0).mean(0)
         out_cov = np.cov(np.concatenate(out_cov, axis=0).T)
 
-        if len(fc_out_mean) > 0:
-            fc_out_mean = np.concatenate(fc_out_mean, axis=0).mean(0)
-        else:
-            fc_out_mean = -1
+        fc_out_mean = (
+            np.concatenate(fc_out_mean, axis=0).mean(0) if len(fc_out_mean) > 0 else -1
+        )
 
         output_dict = collections.defaultdict(list)
         fc_output_dict = collections.defaultdict(list)
@@ -133,10 +132,11 @@ def extract_feature(train_loader, val_loader, model, args, tag="last"):
                 inputs, use_fc=use_fc, cat=args.multi_layer_eval
             )
             outputs = outputs.cpu().data.numpy()
-            if fc_outputs is not None:
-                fc_outputs = fc_outputs.cpu().data.numpy()
-            else:
-                fc_outputs = [None] * outputs.shape[0]
+            fc_outputs = (
+                fc_outputs.cpu().data.numpy()
+                if fc_outputs is not None
+                else [None] * outputs.shape[0]
+            )
             for out, fc_out, label in zip(outputs, fc_outputs, labels, strict=False):
                 output_dict[label.item()].append(out)
                 fc_output_dict[label.item()].append(fc_out)
@@ -271,7 +271,7 @@ def extract_and_evaluate(
         writer.add_scalar(split + "/5-shot/CL2N", shot5_info[0], t)
     filename = "../shot5_info.csv"
     if split == "val":
-        with open(filename, "a", newline="") as file:
+        with open(filename, "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerow([shot5_info[0]])
     return shot1_info, shot5_info

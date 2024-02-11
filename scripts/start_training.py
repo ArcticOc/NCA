@@ -50,7 +50,7 @@ def main():
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = True
         torch.manual_seed(args.seed)
-        torch.cuda.manual_seed(args.seed)
+        # torch.cuda.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
         np.random.seed(args.seed)
         random.seed(args.seed)
@@ -71,6 +71,7 @@ def main():
         projection=args.projection,
         use_fc=False,
     )
+    # Init DistributedDataParallel
     dist.init_process_group("nccl")
     rank = dist.get_rank()
     print(f"Start running DDP on rank {rank}.")
@@ -78,8 +79,12 @@ def main():
     # create model and move it to GPU with id rank
     device_id = rank % torch.cuda.device_count()
     # model.to(device_id)
+
+    # Apply SyncBatchNorm
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device_id)
     model = DDP(model, device_ids=[device_id])
+
+    # Apply DataParallel
     # model = torch.nn.DataParallel(model).cuda()
 
     print("\n>> Number of CUDA devices: " + str(torch.cuda.device_count()))
@@ -97,7 +102,7 @@ def main():
     ).cuda()
 
     train_loader, DDP_sampler = get_dataloader(
-        "train", args, not args.disable_train_augment, shuffle=False
+        "train", args, not args.disable_train_augment, shuffle=True
     )
 
     # init train loader used for centering
@@ -119,7 +124,7 @@ def main():
 
     tqdm_loop = warp_tqdm(list(range(args.start_epoch, args.epochs)), args)
     for epoch in tqdm_loop:
-        # train for one epoch
+        # Set epoch for DDP sampler
         DDP_sampler.set_epoch(epoch)
         train(
             train_loader,
@@ -171,8 +176,12 @@ def main():
     tb_writer_val.add_scalar("val/1-shot/Best-CL2N", best_accuracy_meter.cl2n_1shot, 0)
     tb_writer_val.add_scalar("val/5-shot/Best-CL2N", best_accuracy_meter.cl2n_5shot, 0)
 
-    # at the end of training, evaluate on the VAL set with the best performing epoch of the model just trained
-    # on more epochs than during training
+    print(
+        f"Best 1-shot accuracy: {best_accuracy_meter.cl2n_1shot}\nBest 5-shot accuracy: {best_accuracy_meter.cl2n_5shot}"
+    )
+
+    # at the end of training, evaluate on the VAL set with the best performing epoch of the model just trained on more epochs than during training
+    # FIXME: overlaying all the val set on the same plot
     """
     extract_and_evaluate(
         model,
